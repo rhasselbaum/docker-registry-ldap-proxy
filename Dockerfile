@@ -32,4 +32,6 @@ ENV SERVER_NAME=localhost \
     AUTH_LDAP_URL="ldap://dc-01.example.com:3268/?userPrincipalName?sub" \
     LDAP_TRUSTED_MODE=TLS \
     REQUIRE_AUTHZ_TYPE=ldap-user \
-    REQUIRE_AUTHZ_USERS=registry.admin@example.com
+    REQUIRE_AUTHZ_USERS=registry.admin@example.com \
+    LOG_LEVEL=warn
+

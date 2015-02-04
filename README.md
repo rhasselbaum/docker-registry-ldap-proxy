@@ -40,7 +40,7 @@ In this example, we will assume the certificate file is called `reg-proxy-cert.p
     +--reg-proxy-key.pem
 ```
 
-If you clone my [Git repository]((http://openvpn.net/index.php/open-source/documentation/miscellaneous/77-rsa-key-management.html) you can put these subdirectories inside the repository directory. Both `certs` and `keys` are listed in `.gitignore`.
+If you clone my [Git repository](http://openvpn.net/index.php/open-source/documentation/miscellaneous/77-rsa-key-management.html) you can put these subdirectories inside the repository directory. Both `certs` and `keys` are listed in `.gitignore`.
 
 Run the container
 -----------------
@@ -58,10 +58,12 @@ docker run -d -p 443:443 \
   rhasselbaum/docker-registry-ldap-proxy
 ```
 
-This starts the proxy listening on the host's port 443 (HTTPS) and links it to an existing registry container named `registry`. The `AUTH_LDAP_URL` environment variables specifies the LDAP URL and is equivalent to Apache's [mod_authnz_ldap](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html) directive of the same name. By default, the proxy will use STARTTLS to force an encrypted connection on the LDAP port.
+This starts the proxy listening on the host's port 443 (HTTPS) and links it to an existing registry container named `registry`. The `AUTH_LDAP_URL` environment variables specifies the LDAP URL and is equivalent to Apache's [mod_authnz_ldap](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html) directive of the [same name](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#authldapurl). By default, the proxy will use STARTTLS to force an encrypted connection on the LDAP port.
 
 The full list of recognized environment variables with defaults is given below. Most of these correspond to Apache configuration directives and the links take you to the corresponding documentation. The defaults try to be sensible except for `AUTH_LDAP_URL` and `REQUIRE_AUTHZ_USERS`, which must be specified for a minimally functional proxy.
 
+* [LOG_LEVEL](http://httpd.apache.org/docs/2.4/mod/core.html#loglevel) = `warn`
+  Apache HTTP server log level. Setting this to `debug` or one of the `traceX` levels can help you troubleshoot problems. Log entries are written to standard output and can be read with `docker logs`.
 * [SERVER_NAME](http://httpd.apache.org/docs/2.4/mod/core.html#servername) = `localhost`
   The fully-qualified domain name or URL remote clients use to access this proxy server. This should match the Common Name (CN) in the proxy's certificate.
 * [LDAP_TRUSTED_GLOBAL_CERT_PATH](http://httpd.apache.org/docs/2.4/mod/mod_ldap.html#ldaptrustedglobalcert) = `/etc/ssl/certs/ldap-ca-cert.pem`
@@ -69,7 +71,7 @@ The full list of recognized environment variables with defaults is given below. 
 * [LDAP_TRUSTED_MODE](http://httpd.apache.org/docs/2.4/mod/mod_ldap.html#ldaptrustedmode) = `TLS`
   Encryption mode for LDAP server connections. `TLS` uses STARTTLS to upgrade an unencrypted connection on the default port to an encrypted one. `SSL` typically runs on a dedicated port. `NONE` means no encryption and should only be used for testing. When setting this to `NONE`, you may also set `LDAP_TRUSTED_GLOBAL_CERT_PATH` to `/dev/null` to avoid having to provide a certificate for LDAP.
 * [LDAP_LIBRARY_DEBUG](http://httpd.apache.org/docs/2.4/mod/mod_ldap.html#ldaplibrarydebug) = `0`
-  Debug log level for the LDAP library. Apache recommends 7 for verbose output. Log entries are written to standard output and can be read with `docker logs`.
+  Debug log level for the LDAP library. Apache recommends 7 for verbose output. Log entries are written to standard output and can be read with `docker logs`. Also see `LOG_LEVEL`.
 * [SSL_CERTIFICATE_FILE](http://httpd.apache.org/docs/current/mod/mod_ssl.html#sslcertificatefile) = `/etc/ssl/certs/reg-proxy-cert.pem`
   Certificate of this registry proxy. It must be signed by a CA that is trusted by its clients (e.g. the Docker daemon). Self-signed certificates will not work with Docker.
 * [SSL_CERTIFICATE_KEY_FILE](http://httpd.apache.org/docs/current/mod/mod_ssl.html#sslcertificatekeyfile) = `/etc/ssl/private/reg-proxy-key.pem`
@@ -81,15 +83,19 @@ The full list of recognized environment variables with defaults is given below. 
 * [AUTH_LDAP_URL](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#authldapurl) = `ldap://dc-01.example.com:3268/?userPrincipalName?sub`
 The LDAP server URL and search parameters for LDAP queries. You **MUST** override this setting to have a functional proxy. The default shows the [typical form](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#activedirectory) for queries using Active Directory's Global Catalog. Also make sure the setting of `LDAP_TRUSTED_MODE` is compatible with the scheme specified here (e.g. `ldap://` for STARTTLS or unencrypted; `ldaps://` for SSL). By default, the connection is made over unsecured port 3268, but immediately upgraded to a secure connection using STARTTLS.
 * [AUTH_LDAP_BIND_DN](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#authldapbinddn) (no default)
-  DN used to bind to the server when making LDAP queries. In Active Directory, this is typically a service account in the format `user@example.com`. It is **NOT** necessarily the same as the user or group authorized to make changes to the Docker registry.
+  DN used to bind to the server when making LDAP queries. In Active Directory, this is typically a service account in the format `user@example.com`. It is not necessarily the same as the user or group authorized to make changes to the Docker registry.
+
 > Due to an [Apache issue](https://issues.apache.org/bugzilla/show_bug.cgi?id=57506), this setting must be specified even though it is technically optional. Active Directory normally requires it anyway.
+
 * [AUTH_LDAP_BIND_PASSWORD](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#authldapbindpassword) (no default)
   Password used in conjunction with the account specified in `AUTH_LDAP_BIND_DN`. If you don't want to pass the password as a plaintext environment variable, you can instead copy a file with the password into the container and use Apache's `exec:` syntax to fetch it. See the linked documentation for details.
+
 > Due to an [Apache issue](https://issues.apache.org/bugzilla/show_bug.cgi?id=57506), this setting must be specified even though it is technically optional. Active Directory normally requires it anyway.
+
 * [REQUIRE_AUTHZ_TYPE](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#requiredirectives) = `ldap-user`
   The filtering strategy used to identify the user(s) authorized to make changes to the registry. Examples include `ldap-user`, `ldap-group`, and `ldap-filter`. Consult the linked Apache documentation for all possibilities. This setting tells the proxy how to interpret the value in `REQUIRE_AUTHZ_USERS`.
 * [REQUIRE_AUTHZ_USERS](http://httpd.apache.org/docs/2.4/mod/mod_authnz_ldap.html#requiredirectives) = `registry.admin@example.com`
-  User name, group name, or any other string compatible with the `REQUIRE_AUTHZ_TYPE` setting that specifies the user(s) authorized to make changes to the registry. When specifying a user name in Active Directory, it should be of the form `user@example.com`.
+  User name, group name, or any other string compatible with the `REQUIRE_AUTHZ_TYPE` setting that specifies the user(s) authorized to make changes to the registry. When specifying a user name in Active Directory Global Catalog, it should be of the form `user@example.com`.
 
 Naturally, you can build child images with your own `Dockerfile` if you don't want to specify environment variables in `docker run`.
 
@@ -119,4 +125,4 @@ docker login -u registry.admin@example.com \
   -e registry.admin@example.com \
   docker.example.com
 ```
-You will be prompted for a password. Strangely, `docker login` may report success even if the credentials are incorrect, so the real test is to try to push an image after login. If you get an error complaining about an unknown CA certificate during login, make sure you followed the instructions above to register the proxy's CA certificate with the Docker daemon.
+You will be prompted for a password. Strangely, `docker login` may report success even if the credentials are incorrect, so the real test is to try to push an image after login. If you get an error complaining about an unknown CA certificate, make sure you followed the instructions above to register the proxy's CA certificate with the Docker daemon.
